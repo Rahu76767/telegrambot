@@ -287,7 +287,7 @@ def send_main_menu(chat_id,uid,extra_text=""):
     filled=int(score/10); bar="█"*filled+"░"*(10-filled)
     text=(f"{extra_text}\n\n[{bar}] {score}% | {p.get('plan','🆓 Free')}"
           if extra_text else f"[{bar}] {score}% | {p.get('plan','🆓 Free')}")
-    bot.send_message(chat_id,text,reply_markup=markup)
+    bot.send_message(chat_id,text,reply_markup=markup,parse_mode="HTML")
 # ══════════ PRIORITY: Admin character mode — registered FIRST ══════════
 @bot.message_handler(func=lambda msg: (
     msg.text and is_admin(msg.from_user.id) and
@@ -831,7 +831,8 @@ def end_chat_cmd(message):
         except Exception: pass
         send_main_menu(message.chat.id,uid)
     else:
-        bot.send_message(message.chat.id,"ℹ️ You are not in a chat.")
+        bot.send_message(message.chat.id,"ℹ️ You are not in a chat right now.")
+        send_main_menu(message.chat.id,uid)
 
 @bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("🔴 End Chat"))
 def end_chat_btn(message): end_chat_cmd(message)
@@ -1224,8 +1225,10 @@ def ask_setup_step(chat_id,uid,step):
         for lf in LOOKING_FOR.keys(): markup.add(lf)
         bot.send_message(chat_id,f"<b>Step 5/8</b>\n\n💫 <b>What are you looking for?</b>",reply_markup=markup,parse_mode="HTML")
     elif step=="hobbies":
-        _hobby_temp[uid]=[]
-        _send_hobby_picker(chat_id,uid,[])
+        # Only init if not already set (don't wipe tapped selections)
+        if uid not in _hobby_temp:
+            _hobby_temp[uid]=[]
+        _send_hobby_picker(chat_id,uid,_hobby_temp.get(uid,[]))
     elif step=="bio":
         bot.send_message(chat_id,
             f"<b>Step 7/8</b>\n\n✏️ <b>Short bio</b> (max 150 chars):\n<i>Example: \"Loves chai, sunsets and long walks!\"</i>",
