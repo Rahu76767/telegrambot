@@ -21,7 +21,7 @@ TOKEN       = os.getenv("TELEGRAM_TOKEN", "8511522063:AAGGf9sZ8GAN0nK3liAj3_oNEz
 ADMIN_ID    = 1405765652
 ADMIN_IDS   = [1405765652, 1502832674]
 ADMIN_USERNAME = "@Rober_rev"
-UPI_ID      = "rahulramapuri76@oksbi"
+UPI_ID      = "7676751069@ybl"
 ADMIN_FILE  = os.path.join(os.path.dirname(__file__), "admins.json")
 MAX_THREADS = 8
 MATCH_EXPIRY_HOURS    = 24
@@ -580,16 +580,19 @@ def cancel_cmd(message):
 # ═══════════════════ FIND MATCHES ═══════════════════
 @bot.message_handler(func=lambda msg: msg.text and get_text(msg.from_user.id,'find_match') in msg.text)
 def find_matches(message):
-    uid=message.from_user.id; p=get_user_profile(uid)
+    _do_find_matches(message.chat.id, message.from_user.id)
+
+def _do_find_matches(chat_id, uid):
+    p=get_user_profile(uid)
     if not p.get("profile_complete"):
         markup=types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("👤 Complete Profile",callback_data="goto_profile"))
-        bot.send_message(message.chat.id,"⚠️ Complete your profile first!\n\nTap below to go to your profile.",reply_markup=markup); return
+        bot.send_message(chat_id,"⚠️ <b>Complete your profile first!</b>\n\nTap below to finish setting up.",reply_markup=markup,parse_mode="HTML"); return
     limits=get_plan_limits(uid); usage=get_daily_usage(uid)
     if usage["matches_used"]>=limits["matches_per_day"]:
         markup=types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⬆️ Upgrade Plan",callback_data="cb_upgrade"))
-        bot.send_message(message.chat.id,
+        bot.send_message(chat_id,
             f"⏰ <b>Daily limit reached!</b>\n\n{limits['matches_per_day']} matches used.\nResets at midnight or upgrade! 💎",
             reply_markup=markup,parse_mode="HTML"); return
     matches=get_cached_matches(uid,limit=10)
@@ -597,15 +600,15 @@ def find_matches(message):
         markup=types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("👤 Edit Profile",callback_data="goto_profile"),
                    types.InlineKeyboardButton("📸 Add Photos",callback_data="goto_photos"))
-        bot.send_message(message.chat.id,
-            "😅 <b>No matches yet!</b>\n\n• Add more photos 📸\n• Add more hobbies 🎯\n• Try different city",
+        bot.send_message(chat_id,
+            "😅 <b>No matches yet!</b>\n\n• Add more photos 📸\n• Add more hobbies 🎯\n• Try a different city",
             reply_markup=markup,parse_mode="HTML"); return
     match=random.choice(matches[:5]); increment_usage(uid,"matches_used")
     pending_likes.setdefault(str(uid),{})[str(match["user_id"])]=datetime.now().isoformat()
     hobby_text=", ".join(match["hobbies"]) if match["hobbies"] else "—"
     vt=" ✅" if match["is_verified"] else ""; bt=" 🚀" if match["is_boosted"] else ""
     bio_text=f"\n\n📝 <i>{esc(match['bio'])}</i>" if match["bio"] else ""
-    remaining=limits["matches_per_day"]-usage["matches_used"]-1
+    remaining=max(0, limits["matches_per_day"]-usage["matches_used"]-1)
     msg=(f"💕 <b>{get_text(uid,'match_found')}</b>\n\n"
          f"👤 <b>{esc(match['name'])}</b>{vt}{bt}\n"
          f"{esc(match['gender_display'])} • {match['age']} yrs • 📍 {esc(match['city'])}\n"
@@ -619,10 +622,10 @@ def find_matches(message):
     op=get_user_profile(match["user_id"]); photos=op.get("photos",[])
     if photos:
         try:
-            bot.send_photo(message.chat.id,photos[0],caption=msg,reply_markup=markup,parse_mode="HTML")
+            bot.send_photo(chat_id,photos[0],caption=msg,reply_markup=markup,parse_mode="HTML")
             analytics["matches_shown"]+=1; return
         except Exception: pass
-    bot.send_message(message.chat.id,msg,reply_markup=markup,parse_mode="HTML")
+    bot.send_message(chat_id,msg,reply_markup=markup,parse_mode="HTML")
     analytics["matches_shown"]+=1
 
 # ═══════════════════ SUPER LIKE ═══════════════════
@@ -910,8 +913,11 @@ def proxy_chat_message(message):
 # ═══════════════════ PROFILE VIEW ═══════════════════
 @bot.message_handler(func=lambda msg: msg.text and get_text(msg.from_user.id,'profile') in msg.text)
 def view_profile(message):
-    uid=message.from_user.id; p=get_user_profile(uid)
-    if not p: bot.send_message(message.chat.id,"⚠️ No profile. Send /start"); return
+    _do_view_profile(message.chat.id, message.from_user.id)
+
+def _do_view_profile(chat_id, uid):
+    p=get_user_profile(uid)
+    if not p: bot.send_message(chat_id,"⚠️ No profile. Send /start"); return
     score=get_profile_score(p); hobbies=", ".join(p.get("hobbies",[])[:5]) or "None"
     v=" ✅" if p.get("verified") else ""; exp=p.get("plan_expires","N/A")
     filled=int(score/10); bar="█"*filled+"░"*(10-filled)
@@ -932,7 +938,7 @@ def view_profile(message):
     markup.add(types.InlineKeyboardButton("🎯 Edit Hobbies",callback_data="cb_edithobbies"),
                types.InlineKeyboardButton("⬆️ Upgrade Plan",callback_data="cb_upgrade"))
     markup.add(types.InlineKeyboardButton("🗑 Delete Account",callback_data="confirm_delete"))
-    bot.send_message(message.chat.id,msg,reply_markup=markup,parse_mode="HTML")
+    bot.send_message(chat_id,msg,reply_markup=markup,parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data=="edit_bio")
 def edit_bio_cb(call):
@@ -980,11 +986,13 @@ def cb_upgrade(call):
 
 @bot.callback_query_handler(func=lambda call: call.data=="goto_profile")
 def goto_profile_cb(call):
-    safe_answer(call.id); view_profile(call.message)
+    safe_answer(call.id)
+    _do_view_profile(call.message.chat.id, call.from_user.id)
 
 @bot.callback_query_handler(func=lambda call: call.data=="goto_findmatch")
 def goto_findmatch_cb(call):
-    safe_answer(call.id); find_matches(call.message)
+    safe_answer(call.id)
+    _do_find_matches(call.message.chat.id, call.from_user.id)
 
 @bot.callback_query_handler(func=lambda call: call.data=="confirm_delete")
 def confirm_delete(call):
